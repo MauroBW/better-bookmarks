@@ -66,7 +66,10 @@ This code was completely vibe-coded using GPT 5.
 
 
 Next steps:
-- Improve sections handling
-- Storage all sections contents in sessionStorage or something to reuse
-- Improve wallpaper storage
-- Improve UI
+[x] Improve sections handling
+[x] Storage all sections contents in sessionStorage or something to reuse
+[ ] Improve wallpaper storage
+[ ] Improve UI
+[ ] Create new sections button
+[ ] Improve bookmark edit form
+[ ] Fix de wallpaper

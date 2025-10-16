@@ -7,7 +7,7 @@ export const SECTIONS: Section[] = [
   {
     title: "Work",
     items: [
-      { label: "GitHub", url: "https://github.com" },
+      { label: "GitHub Profile", url: "https://github.com/MauroBW" },
       { label: "Slack", url: "https://slack.com" },
       { label: "Jira", url: "https://jira.com" },
     ],

@@ -12,7 +12,9 @@ type Props = {
   onOpenBookmarkModal: () => void;
   preferences: WorkspacePreferences;
   onToggleCompactMode: () => void;
+  onToggleFreeLayoutMode: () => void;
   onToggleFavicons: () => void;
+  onAccentColorChange: (value: string) => void;
   onCardRadiusChange: (value: number) => void;
   onAccentGlowChange: (value: number) => void;
   onTextScaleChange: (value: number) => void;
@@ -34,7 +36,9 @@ const Header: React.FC<Props> = ({
   onOpenBookmarkModal,
   preferences,
   onToggleCompactMode,
+  onToggleFreeLayoutMode,
   onToggleFavicons,
+  onAccentColorChange,
   onCardRadiusChange,
   onAccentGlowChange,
   onTextScaleChange,
@@ -128,6 +132,9 @@ const Header: React.FC<Props> = ({
                 <button onClick={onToggleCompactMode} className="menu-item">
                   {preferences.compactMode ? "Desactivar compacto" : "Activar compacto"}
                 </button>
+                <button onClick={onToggleFreeLayoutMode} className="menu-item">
+                  {preferences.freeLayoutMode ? "Usar grid de sections" : "Liberar sections (canvas)"}
+                </button>
                 <button onClick={onToggleFavicons} className="menu-item">
                   {preferences.showFavicons ? "Ocultar favicons" : "Mostrar favicons"}
                 </button>
@@ -180,6 +187,21 @@ const Header: React.FC<Props> = ({
                   onChange={(event) => onWallpaperBlurChange(Number(event.target.value))}
                   className="visual-range"
                 />
+              </label>
+              <label className="mt-3 block text-xs font-semibold tracking-wide text-text-secondary">
+                Color reloj/clima ({preferences.accentColor})
+                <div className="mt-2 flex items-center gap-2">
+                  <input
+                    type="color"
+                    value={preferences.accentColor}
+                    onChange={(event) => onAccentColorChange(event.target.value)}
+                    className="h-8 w-12 cursor-pointer rounded-md border border-white/15 bg-transparent p-0"
+                    aria-label="Accent color"
+                  />
+                  <button className="menu-item !w-auto !px-2 !py-1" onClick={() => onAccentColorChange("#e2e8f0")}>
+                    Reset
+                  </button>
+                </div>
               </label>
               <label className="mt-3 block text-xs font-semibold tracking-wide text-text-secondary">
                 Redondeo de tarjetas

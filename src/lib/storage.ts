@@ -6,12 +6,30 @@ const WORKSPACE_KEY = "bookmark-wall-workspace-v2";
 const LEGACY_SECTIONS_KEY = "bookmark-wall-sections";
 const THEME_KEY = "bookmark-wall-theme";
 
+function normalizeHexColor(value: string | undefined, fallback: string) {
+  if (typeof value !== "string") return fallback;
+  const trimmed = value.trim();
+  const sixDigit = /^#[0-9a-fA-F]{6}$/;
+  if (sixDigit.test(trimmed)) return trimmed.toLowerCase();
+  const threeDigit = /^#[0-9a-fA-F]{3}$/;
+  if (threeDigit.test(trimmed)) {
+    const [, r, g, b] = trimmed;
+    return `#${r}${r}${g}${g}${b}${b}`.toLowerCase();
+  }
+  return fallback;
+}
+
 function normalizePreferences(workspace: Workspace): Workspace {
   return {
     ...workspace,
     preferences: {
       ...DEFAULT_WORKSPACE.preferences,
       ...workspace.preferences,
+      freeLayoutMode: Boolean(workspace.preferences?.freeLayoutMode),
+      accentColor: normalizeHexColor(
+        workspace.preferences?.accentColor,
+        DEFAULT_WORKSPACE.preferences.accentColor
+      ),
       cardRadius: Number.isFinite(workspace.preferences?.cardRadius)
         ? Math.max(8, Math.min(26, workspace.preferences.cardRadius))
         : DEFAULT_WORKSPACE.preferences.cardRadius,

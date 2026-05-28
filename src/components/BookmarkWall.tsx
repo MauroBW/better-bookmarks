@@ -6,8 +6,19 @@ import { useTheme } from "../hooks/useTheme";
 import { useWallpaper } from "../hooks/useWallpaper";
 import { useWorkspace } from "../hooks/useWorkspace";
 import BookmarkEditorModal from "./BookmarkEditorModal";
-import type { Bookmark } from "../lib/types";
+import type { Bookmark, Section } from "../lib/types";
 import defaultBackground from "../../background/background_1.jpg";
+
+function toRgb(color: string) {
+  const normalized = color.trim().toLowerCase();
+  const sixDigit = /^#[0-9a-f]{6}$/;
+  if (!sixDigit.test(normalized)) return null;
+  return {
+    r: Number.parseInt(normalized.slice(1, 3), 16),
+    g: Number.parseInt(normalized.slice(3, 5), 16),
+    b: Number.parseInt(normalized.slice(5, 7), 16),
+  };
+}
 
 /* ---------- Main ---------- */
 export default function BookmarkWall() {
@@ -25,8 +36,11 @@ export default function BookmarkWall() {
       }
     | null
   >(null);
+  const [draggingSectionId, setDraggingSectionId] = useState<string | null>(null);
+  const dragOffsetRef = useRef<{ x: number; y: number } | null>(null);
 
   const fileRef = useRef<HTMLInputElement>(null);
+  const freeCanvasRef = useRef<HTMLDivElement | null>(null);
 
   const setWall = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
@@ -70,7 +84,60 @@ export default function BookmarkWall() {
     setWallpaperFailed(false);
   }, [wallpaper]);
 
+  const defaultSectionPosition = (index: number) => ({
+    x: (index % 3) * 388,
+    y: Math.floor(index / 3) * 390,
+  });
+
+  const getSectionPosition = (section: Section, index: number) =>
+    section.position ?? defaultSectionPosition(index);
+
+  const startFreeSectionDrag = (event: React.PointerEvent, section: Section, index: number) => {
+    if (!workspace.preferences.freeLayoutMode || event.button !== 0) return;
+    const canvas = freeCanvasRef.current;
+    if (!canvas) return;
+    const rect = canvas.getBoundingClientRect();
+    const currentPosition = getSectionPosition(section, index);
+    dragOffsetRef.current = {
+      x: event.clientX - rect.left - currentPosition.x,
+      y: event.clientY - rect.top - currentPosition.y,
+    };
+    setDraggingSectionId(section.id);
+    event.preventDefault();
+  };
+
+  useEffect(() => {
+    if (!workspace.preferences.freeLayoutMode || !draggingSectionId) return;
+
+    const onPointerMove = (event: PointerEvent) => {
+      const canvas = freeCanvasRef.current;
+      const offset = dragOffsetRef.current;
+      if (!canvas || !offset) return;
+      const rect = canvas.getBoundingClientRect();
+      const nextX = Math.max(0, event.clientX - rect.left - offset.x);
+      const nextY = Math.max(0, event.clientY - rect.top - offset.y);
+      actions.setSectionPosition(draggingSectionId, { x: nextX, y: nextY });
+    };
+
+    const onPointerUp = () => {
+      dragOffsetRef.current = null;
+      setDraggingSectionId(null);
+    };
+
+    window.addEventListener("pointermove", onPointerMove);
+    window.addEventListener("pointerup", onPointerUp);
+    return () => {
+      window.removeEventListener("pointermove", onPointerMove);
+      window.removeEventListener("pointerup", onPointerUp);
+    };
+  }, [actions, draggingSectionId, workspace.preferences.freeLayoutMode]);
+
   const visualStyle = {
+    "--clock-color": workspace.preferences.accentColor,
+    "--clock-rgb": (() => {
+      const rgb = toRgb(workspace.preferences.accentColor);
+      return rgb ? `${rgb.r}, ${rgb.g}, ${rgb.b}` : "226, 232, 240";
+    })(),
     "--card-radius": `${workspace.preferences.cardRadius}px`,
     "--accent-glow-alpha": `${workspace.preferences.accentGlow / 100}`,
     "--ui-text-scale": `${workspace.preferences.textScale / 100}`,
@@ -117,7 +184,11 @@ export default function BookmarkWall() {
           }}
           preferences={workspace.preferences}
           onToggleCompactMode={() => actions.setCompactMode(!workspace.preferences.compactMode)}
+          onToggleFreeLayoutMode={() =>
+            actions.setFreeLayoutMode(!workspace.preferences.freeLayoutMode)
+          }
           onToggleFavicons={() => actions.setShowFavicons(!workspace.preferences.showFavicons)}
+          onAccentColorChange={actions.setAccentColor}
           onCardRadiusChange={actions.setCardRadius}
           onAccentGlowChange={actions.setAccentGlow}
           onTextScaleChange={actions.setTextScale}
@@ -128,28 +199,78 @@ export default function BookmarkWall() {
           onSearchChange={setSearchTerm}
         />
 
-        <div className="section-grid mx-auto grid max-w-[1700px] grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
-          {workspace.sections.map((section, index) => (
-            <SectionCard
-              key={section.id}
-              section={section}
-              sectionIndex={index}
-              compactMode={workspace.preferences.compactMode}
-              showFavicons={workspace.preferences.showFavicons}
-              searchTerm={searchTerm}
-              onRenameSection={actions.renameSection}
-              onRemoveSection={actions.removeSection}
-              onMoveSection={actions.moveSection}
-              onOpenAddBookmark={(sectionId) => setEditorState({ mode: "create", sectionId })}
-              onOpenEditBookmark={(sectionId, bookmark) =>
-                setEditorState({ mode: "edit", sectionId, bookmark })
-              }
-              onDropBookmark={(targetSectionId, bookmarkId, sourceSectionId) =>
-                actions.moveBookmarkAcrossSections(sourceSectionId, targetSectionId, bookmarkId, 0)
-              }
-            />
-          ))}
-        </div>
+        {workspace.preferences.freeLayoutMode ? (
+          <div
+            ref={freeCanvasRef}
+            className={`section-free-canvas mx-auto max-w-[1700px] ${draggingSectionId ? "select-none" : ""}`}
+            style={{
+              height: Math.max(
+                920,
+                ...workspace.sections.map((section, index) => getSectionPosition(section, index).y + 420)
+              ),
+            }}
+          >
+            {workspace.sections.map((section, index) => {
+              const position = getSectionPosition(section, index);
+              return (
+                <div
+                  key={section.id}
+                  className={`absolute w-[360px] transition-shadow ${draggingSectionId === section.id ? "z-30" : "z-20"}`}
+                  style={{ left: position.x, top: position.y }}
+                >
+                  <SectionCard
+                    section={section}
+                    sectionIndex={index}
+                    compactMode={workspace.preferences.compactMode}
+                    showFavicons={workspace.preferences.showFavicons}
+                    searchTerm={searchTerm}
+                    freeLayoutMode={workspace.preferences.freeLayoutMode}
+                    isBeingDragged={draggingSectionId === section.id}
+                    onStartFreeSectionDrag={(event) => startFreeSectionDrag(event, section, index)}
+                    onRenameSection={actions.renameSection}
+                    onRemoveSection={actions.removeSection}
+                    onMoveSection={actions.moveSection}
+                    onOpenAddBookmark={(sectionId) => setEditorState({ mode: "create", sectionId })}
+                    onOpenEditBookmark={(sectionId, bookmark) =>
+                      setEditorState({ mode: "edit", sectionId, bookmark })
+                    }
+              onRemoveBookmark={actions.removeBookmark}
+                    onDropBookmark={(targetSectionId, bookmarkId, sourceSectionId) =>
+                      actions.moveBookmarkAcrossSections(sourceSectionId, targetSectionId, bookmarkId, 0)
+                    }
+                  />
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="section-grid mx-auto grid max-w-[1700px] grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+            {workspace.sections.map((section, index) => (
+              <SectionCard
+                key={section.id}
+                section={section}
+                sectionIndex={index}
+                compactMode={workspace.preferences.compactMode}
+                showFavicons={workspace.preferences.showFavicons}
+                searchTerm={searchTerm}
+                freeLayoutMode={workspace.preferences.freeLayoutMode}
+                isBeingDragged={false}
+                onStartFreeSectionDrag={() => {}}
+                onRenameSection={actions.renameSection}
+                onRemoveSection={actions.removeSection}
+                onMoveSection={actions.moveSection}
+                onOpenAddBookmark={(sectionId) => setEditorState({ mode: "create", sectionId })}
+                onOpenEditBookmark={(sectionId, bookmark) =>
+                  setEditorState({ mode: "edit", sectionId, bookmark })
+                }
+                onRemoveBookmark={actions.removeBookmark}
+                onDropBookmark={(targetSectionId, bookmarkId, sourceSectionId) =>
+                  actions.moveBookmarkAcrossSections(sourceSectionId, targetSectionId, bookmarkId, 0)
+                }
+              />
+            ))}
+          </div>
+        )}
       </div>
 
       <HackerClock />

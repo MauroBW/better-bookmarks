@@ -2,7 +2,19 @@ import { useEffect, useMemo, useState } from "react";
 import { DEFAULT_WORKSPACE } from "../data/sections";
 import { loadWorkspace, saveWorkspace } from "../lib/storage";
 import { normalizeUrl, uid } from "../lib/utils";
-import type { Bookmark, Section, SectionKind, Workspace } from "../lib/types";
+import type { Bookmark, Section, SectionKind, SectionPosition, Workspace } from "../lib/types";
+
+function normalizeHexColor(value: string, fallback: string) {
+  const trimmed = value.trim();
+  const sixDigit = /^#[0-9a-fA-F]{6}$/;
+  if (sixDigit.test(trimmed)) return trimmed.toLowerCase();
+  const threeDigit = /^#[0-9a-fA-F]{3}$/;
+  if (threeDigit.test(trimmed)) {
+    const [, r, g, b] = trimmed;
+    return `#${r}${r}${g}${g}${b}${b}`.toLowerCase();
+  }
+  return fallback;
+}
 
 function reorder<T>(items: T[], from: number, to: number) {
   const next = items.slice();
@@ -166,10 +178,33 @@ export function useWorkspace() {
           preferences: { ...prev.preferences, compactMode },
         }));
       },
+      setFreeLayoutMode(freeLayoutMode: boolean) {
+        setWorkspace((prev) => ({
+          ...prev,
+          preferences: { ...prev.preferences, freeLayoutMode },
+        }));
+      },
       setShowFavicons(showFavicons: boolean) {
         setWorkspace((prev) => ({
           ...prev,
           preferences: { ...prev.preferences, showFavicons },
+        }));
+      },
+      setAccentColor(accentColor: string) {
+        setWorkspace((prev) => ({
+          ...prev,
+          preferences: {
+            ...prev.preferences,
+            accentColor: normalizeHexColor(accentColor, prev.preferences.accentColor),
+          },
+        }));
+      },
+      setSectionPosition(sectionId: string, position: SectionPosition) {
+        setWorkspace((prev) => ({
+          ...prev,
+          sections: prev.sections.map((section) =>
+            section.id === sectionId ? { ...section, position } : section
+          ),
         }));
       },
       setCardRadius(cardRadius: number) {

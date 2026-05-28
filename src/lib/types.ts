@@ -29,6 +29,8 @@ export type Section = {
 export type WorkspacePreferences = {
   showFavicons: boolean;
   compactMode: boolean;
+  freeLayoutMode: boolean;
+  accentColor: string;
   cardRadius: number;
   accentGlow: number;
   textScale: number;

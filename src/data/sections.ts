@@ -7,6 +7,8 @@ export const DEFAULT_WORKSPACE: Workspace = {
   preferences: {
     showFavicons: true,
     compactMode: false,
+    freeLayoutMode: false,
+    accentColor: "#e2e8f0",
     cardRadius: 14,
     accentGlow: 70,
     textScale: 100,

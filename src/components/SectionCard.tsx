@@ -12,11 +12,15 @@ type Props = {
   compactMode: boolean;
   showFavicons: boolean;
   searchTerm: string;
+  freeLayoutMode: boolean;
+  isBeingDragged: boolean;
+  onStartFreeSectionDrag: (event: React.PointerEvent) => void;
   onRenameSection: (sectionId: string, title: string) => void;
   onRemoveSection: (sectionId: string) => void;
   onMoveSection: (fromIndex: number, toIndex: number) => void;
   onOpenAddBookmark: (sectionId: string) => void;
   onOpenEditBookmark: (sectionId: string, bookmark: Bookmark) => void;
+  onRemoveBookmark: (sectionId: string, bookmarkId: string) => void;
   onDropBookmark: (targetSectionId: string, bookmarkId: string, sourceSectionId: string) => void;
 };
 
@@ -26,11 +30,15 @@ const SectionCard: React.FC<Props> = ({
   compactMode,
   showFavicons,
   searchTerm,
+  freeLayoutMode,
+  isBeingDragged,
+  onStartFreeSectionDrag,
   onRenameSection,
   onRemoveSection,
   onMoveSection,
   onOpenAddBookmark,
   onOpenEditBookmark,
+  onRemoveBookmark,
   onDropBookmark,
 }) => {
   const [editingTitle, setEditingTitle] = useState(false);
@@ -70,6 +78,7 @@ const SectionCard: React.FC<Props> = ({
   };
 
   const onSectionDrop: React.DragEventHandler<HTMLDivElement> = (event) => {
+    if (freeLayoutMode) return;
     event.preventDefault();
     const payload = event.dataTransfer.getData("application/bookmark-section");
     if (!payload) return;
@@ -91,18 +100,25 @@ const SectionCard: React.FC<Props> = ({
   const cardTone = section.kind === "repos" ? "section-card section-card-repos" : "section-card";
 
   return (
-    <Card className={`${cardTone} ${isBookmarkDropActive ? "ring-2 ring-[color:var(--accent)]/70" : ""}`}>
+    <Card
+      className={`${cardTone} ${isBookmarkDropActive ? "ring-2 ring-[color:var(--accent)]/70" : ""} ${isBeingDragged ? "section-dragging" : ""}`}
+    >
       <div onDragOver={(event) => event.preventDefault()} onDrop={onSectionDrop}>
         <div className="mb-3 flex items-center justify-between">
           <div className="flex min-w-0 items-center gap-2">
             <span
               className="section-drag-handle"
               aria-hidden
-              draggable
-              onDragStart={(event) => {
-                event.dataTransfer.setData("application/bookmark-section", String(sectionIndex));
-                event.dataTransfer.effectAllowed = "move";
-              }}
+              draggable={!freeLayoutMode}
+              onPointerDown={freeLayoutMode ? onStartFreeSectionDrag : undefined}
+              onDragStart={
+                freeLayoutMode
+                  ? undefined
+                  : (event) => {
+                      event.dataTransfer.setData("application/bookmark-section", String(sectionIndex));
+                      event.dataTransfer.effectAllowed = "move";
+                    }
+              }
             >
               ⋮⋮
             </span>
@@ -137,12 +153,16 @@ const SectionCard: React.FC<Props> = ({
             <button className="action-icon" onClick={() => setEditingTitle(true)} aria-label="Edit section title">
               ✎
             </button>
-            <button className="action-icon" onClick={() => onMoveSection(sectionIndex, sectionIndex - 1)} aria-label="Move section left">
-              ‹
-            </button>
-            <button className="action-icon" onClick={() => onMoveSection(sectionIndex, sectionIndex + 1)} aria-label="Move section right">
-              ›
-            </button>
+            {!freeLayoutMode ? (
+              <>
+                <button className="action-icon" onClick={() => onMoveSection(sectionIndex, sectionIndex - 1)} aria-label="Move section left">
+                  ‹
+                </button>
+                <button className="action-icon" onClick={() => onMoveSection(sectionIndex, sectionIndex + 1)} aria-label="Move section right">
+                  ›
+                </button>
+              </>
+            ) : null}
             <button
               onClick={(e) => {
                 e.stopPropagation();
@@ -246,6 +266,13 @@ const SectionCard: React.FC<Props> = ({
                   >
                     ✎
                   </button>
+                  <button
+                    className="bookmark-edit-btn bookmark-delete-btn"
+                    onClick={() => onRemoveBookmark(section.id, bookmark.id)}
+                    aria-label={`Delete ${bookmark.label}`}
+                  >
+                    🗑
+                  </button>
                   <a
                     href={bookmark.url}
                     target="_blank"
@@ -266,7 +293,10 @@ const SectionCard: React.FC<Props> = ({
       </ul>
 
       {!searchTerm && filteredBookmarks.length > 0 ? (
-        <button className="add-bookmark-row mt-3 w-full" onClick={() => onOpenAddBookmark(section.id)}>
+        <button
+          className="add-bookmark-row add-bookmark-row-hover mt-3 w-full"
+          onClick={() => onOpenAddBookmark(section.id)}
+        >
           + Add Bookmark
         </button>
       ) : null}

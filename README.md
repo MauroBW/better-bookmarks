@@ -3,6 +3,9 @@
 Better Bookmarks Canvas is a **desktop-first personal start page** for organizing and launching bookmarks fast.
 It combines a productivity launcher with a visual board experience, so links are grouped by context (Work, Learning, Repositories, Personal) and managed directly on a canvas.
 
+<img width="1916" height="940" alt="image" src="https://github.com/user-attachments/assets/2784dbc0-49b6-43c9-a2f1-1178ba037261" />
+
+
 ---
 
 ## Product Vision
@@ -113,6 +116,3 @@ Not included (yet):
 - Multi-user collaboration
 - Analytics / telemetry
 - Deep nested taxonomy beyond sections and bookmarks
-
----
-<img width="1916" height="940" alt="image" src="https://github.com/user-attachments/assets/adcb0620-3ab5-48d9-99a9-56afd26c4057" />

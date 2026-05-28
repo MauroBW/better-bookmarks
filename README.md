@@ -115,11 +115,4 @@ Not included (yet):
 - Deep nested taxonomy beyond sections and bookmarks
 
 ---
-
-## Suggested Prompt for Design LLMs
-
-Use this prompt when asking an LLM to redesign the product:
-
-> Design a premium desktop-first interface for a personal bookmark canvas app.
-> The product supports section groups (`links`, `repos`), bookmark CRUD, drag-and-drop between sections, a free-layout canvas mode, global search, dark/light themes, wallpaper customization, background dim + blur controls, and compact/density settings.
-> The design should optimize for speed, readability, and low-friction organization, with a modern SaaS-like visual language and strong interaction clarity.
+<img width="1916" height="940" alt="image" src="https://github.com/user-attachments/assets/adcb0620-3ab5-48d9-99a9-56afd26c4057" />

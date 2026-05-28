@@ -1,140 +1,125 @@
 # Better Bookmarks Canvas
 
-Este proyecto es una **homepage personal para gestionar bookmarks** en formato tipo tablero/canvas.
-Está pensada para abrirse como página de inicio del navegador y centralizar accesos rápidos de trabajo, estudio y repositorios.
+Better Bookmarks Canvas is a **desktop-first personal start page** for organizing and launching bookmarks fast.
+It combines a productivity launcher with a visual board experience, so links are grouped by context (Work, Learning, Repositories, Personal) and managed directly on a canvas.
 
 ---
 
-## Objetivo del sistema
+## Product Vision
 
-Permitir que una persona:
+The product is designed to help users:
 
-- Agrupe links por contexto (ej: Work, Learning, Repositories).
-- Reordene visualmente sus grupos y bookmarks.
-- Edite su tablero sin fricción (crear, editar, mover, borrar).
-- Personalice apariencia (tema, wallpaper, densidad visual).
-- Guarde todo localmente sin cuentas ni backend.
-
----
-
-## Qué hace hoy (funcionalidad actual)
-
-### 1) Estructura por secciones
-
-- El tablero está dividido en **secciones**.
-- Cada sección tiene:
-  - título
-  - tipo (`links` o `repos`)
-  - colección de bookmarks
-- Se pueden crear nuevas secciones:
-  - sección normal (`links`)
-  - sección de repositorios (`repos`)
-
-### 2) Gestión completa de bookmarks
-
-Por cada sección se puede:
-
-- Agregar bookmark.
-- Editar bookmark.
-- Eliminar bookmark.
-- Mover bookmark dentro de la misma sección.
-- Arrastrar bookmark y soltarlo en otra sección.
-
-Cada bookmark tiene:
-
-- nombre (label)
-- URL
-- icono opcional (ej emoji)
-
-### 3) Canvas / interacción visual
-
-- Las secciones se muestran como tarjetas en un tablero.
-- Las secciones se pueden reordenar:
-  - por botones (izquierda/derecha)
-  - por drag & drop
-- Los bookmarks se pueden mover por drag & drop entre secciones.
-
-### 4) Modo repositorios
-
-Las secciones de tipo `repos` muestran los links con identidad de proveedor:
-
-- detección de `GitHub`, `GitLab`, `Bitbucket` u `other`
-- badge visual por proveedor
-- extracción de `owner/repo` desde la URL cuando es posible
-
-### 5) Búsqueda
-
-- Input global para filtrar bookmarks por texto.
-- Filtra por título y URL dentro de las secciones.
-
-### 6) Personalización visual
-
-- **Dark/Light mode** con toggle manual.
-- Si no hay preferencia guardada, usa preferencia del sistema operativo.
-- Persistencia del tema en `localStorage`.
-- Wallpaper personalizado:
-  - subir imagen
-  - limpiar wallpaper
-  - persistencia local
-
-### 7) Preferencias de visualización
-
-- Toggle de **compact mode** (más denso / menos denso).
-- Toggle de **favicons** (mostrar/ocultar iconos de sitio).
-
-### 8) Persistencia y migración
-
-- Los datos se guardan localmente (sin servidor).
-- Usa un modelo actual `Workspace v2`.
-- Incluye migración automática desde formato legacy de secciones.
+- Find and open important links in under a few seconds.
+- Keep bookmarks organized by context, not by browser folder trees.
+- Reorganize sections and links with low friction.
+- Personalize the visual environment (theme, wallpaper, density, effects).
+- Keep everything local, private, and account-free.
 
 ---
 
-## Qué NO hace (todavía)
+## Core Product Capabilities
 
-- Sin autenticación ni sincronización en la nube.
-- Sin colaboración multiusuario.
-- Sin import/export de workspace.
-- Sin categorías jerárquicas profundas (solo secciones + bookmarks).
-- Sin analíticas ni tracking.
+### 1) Section-Based Workspace
+
+- Bookmarks are grouped into **sections**.
+- Section types:
+  - `links` (general links)
+  - `repos` (repository-focused presentation)
+- Users can create, rename, reorder, and remove sections.
+
+### 2) Full Bookmark Management
+
+For each section, users can:
+
+- Add bookmarks
+- Edit existing bookmarks
+- Delete bookmarks
+- Move bookmarks between sections via drag and drop
+
+Bookmark data model includes:
+
+- `label`
+- `url`
+- optional `icon`
+
+### 3) Canvas Interaction Modes
+
+The app supports two section layout modes:
+
+- **Grid mode**: automatic responsive columns.
+- **Free layout mode**: section cards can be moved freely across the page (canvas behavior), with positions persisted.
+
+This allows both structured and creative workflows.
+
+### 4) Repository-Aware Cards
+
+For `repos` sections, bookmark rows include provider identity:
+
+- GitHub
+- GitLab
+- Bitbucket
+- Other
+
+Provider badges are detected from URL and rendered automatically.
+
+### 5) Search-First Workflow
+
+- Global search input filters bookmarks by title and URL.
+- Keyboard shortcut support (`Ctrl/Cmd + K`) for faster focus.
+
+### 6) Visual Personalization
+
+Users can personalize the interface with:
+
+- Dark / Light mode
+- Wallpaper upload / clear
+- Background dim control
+- Wallpaper blur control
+- Compact mode
+- Favicon visibility
+- Card radius
+- Accent glow intensity
+- UI text scale
+- Section scale
+
+All settings are persisted locally.
+
+### 7) Local-First Persistence
+
+- No backend required.
+- Data and preferences are stored in `localStorage`.
+- Automatic migration from legacy section format to current `Workspace v2`.
 
 ---
 
-## Modelo mental para diseñar UI (para LLM de diseño)
+## Product Experience Principles
 
-Pensar la app como:
+The UX is built around:
 
-1. **Un canvas principal** con tarjetas de secciones.
-2. **Un header de control** con búsqueda y acciones globales.
-3. **Interacciones de edición inline + modal** para operaciones frecuentes.
-4. **Visual system limpio y rápido**: alto contraste, legibilidad, foco en escaneo.
-5. **Flujo first-click fast**: abrir link en 1 click, editar en pocos pasos.
-
----
-
-## Flujos clave de usuario (que el diseño debe optimizar)
-
-1. Abrir app y lanzar un link frecuente en menos de 2 segundos.
-2. Crear nueva sección y cargar 3-5 bookmarks rápidamente.
-3. Arrastrar bookmarks entre secciones para reorganizar contexto.
-4. Alternar Dark/Light y mantener coherencia visual.
-5. Buscar un bookmark por texto parcial y abrirlo de inmediato.
+- **Speed first**: primary action is opening links quickly.
+- **Low cognitive load**: clear visual hierarchy and scannable rows.
+- **Direct manipulation**: drag-and-drop for reorganization.
+- **Personal workspace feel**: users shape the board to match their habits.
+- **Premium but practical UI**: modern look without sacrificing usability.
 
 ---
 
-## Restricciones del producto (importante para proponer diseño)
+## Current Scope / Non-Goals
 
-- Debe sentirse rápida incluso con muchas tarjetas.
-- Debe mantener claridad visual en dark y light.
-- Debe soportar pantallas desktop primero (responsive en mobile como secundario).
-- Evitar UI recargada: priorizar rapidez, jerarquía visual y escaneabilidad.
-- Mantener acciones CRUD accesibles sin saturar cada tarjeta.
+Not included (yet):
+
+- Cloud sync
+- Authentication
+- Multi-user collaboration
+- Analytics / telemetry
+- Deep nested taxonomy beyond sections and bookmarks
 
 ---
 
-## Prompt sugerido para pasar a un LLM de diseño
+## Suggested Prompt for Design LLMs
 
-> Diseña una interfaz moderna para una homepage tipo canvas de bookmarks.
-> La app permite crear secciones (`links` y `repos`), agregar/editar/eliminar/mover bookmarks, drag & drop entre secciones, búsqueda global, dark/light mode, wallpaper y toggles de densidad/favicons.
-> El foco es productividad diaria: abrir enlaces rápido, reorganizar contenido sin fricción y mantener un look limpio premium.
-> Proponé arquitectura visual completa (layout, componentes, estados, empty states, interacción hover/focus, tokens visuales y sistema de color), optimizada para desktop y rendimiento.
+Use this prompt when asking an LLM to redesign the product:
+
+> Design a premium desktop-first interface for a personal bookmark canvas app.
+> The product supports section groups (`links`, `repos`), bookmark CRUD, drag-and-drop between sections, a free-layout canvas mode, global search, dark/light themes, wallpaper customization, background dim + blur controls, and compact/density settings.
+> The design should optimize for speed, readability, and low-friction organization, with a modern SaaS-like visual language and strong interaction clarity.

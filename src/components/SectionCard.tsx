@@ -1,49 +1,52 @@
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import Card from "./Card";
 import Favicon from "./Favicon";
 import { getColor } from "../data/sections";
-import type { LinkItem, Section } from "../lib/types";
+import type { Bookmark, Section } from "../lib/types";
 import { createPortal } from "react-dom";
+import { getRepoMeta } from "../lib/utils";
 
 type Props = {
   section: Section;
-  idx: number;
-  menuIdx: number | null;
-  editingIdx: number | null;
-  bookmarkMenu: { s: number; i: number } | null;
-  editingBookmark: { sectionIdx: number; itemIdx: number; label: string; url?: string } | null;
-  setMenuIdx: React.Dispatch<React.SetStateAction<number | null>>;
-  toggleEdit: (idx: number) => void;
-  addBookmark: (idx: number) => void;
-  startEditBookmark: (s: number, i: number) => void;
-  setBookmarkMenu: React.Dispatch<React.SetStateAction<{ s: number; i: number } | null>>;
-  moveBookmark: (s: number, i: number, dir: -1 | 1) => void;
-  move: (idx: number, dir: -1 | 1) => void;
-  remove: (idx: number) => void;
-  setEditingBookmark: React.Dispatch<React.SetStateAction<{ sectionIdx: number; itemIdx: number; label: string; url?: string } | null>>;
-  saveEditBookmark: () => void;
+  sectionIndex: number;
+  compactMode: boolean;
+  showFavicons: boolean;
+  searchTerm: string;
+  onRenameSection: (sectionId: string, title: string) => void;
+  onRemoveSection: (sectionId: string) => void;
+  onMoveSection: (fromIndex: number, toIndex: number) => void;
+  onOpenAddBookmark: (sectionId: string) => void;
+  onOpenEditBookmark: (sectionId: string, bookmark: Bookmark) => void;
+  onDropBookmark: (targetSectionId: string, bookmarkId: string, sourceSectionId: string) => void;
 };
 
 const SectionCard: React.FC<Props> = ({
   section,
-  idx,
-  menuIdx,
-  editingIdx,
-  bookmarkMenu,
-  editingBookmark,
-  setMenuIdx,
-  toggleEdit,
-  addBookmark,
-  startEditBookmark,
-  setBookmarkMenu,
-  moveBookmark,
-  move,
-  remove,
-  setEditingBookmark,
-  saveEditBookmark,
+  sectionIndex,
+  compactMode,
+  showFavicons,
+  searchTerm,
+  onRenameSection,
+  onRemoveSection,
+  onMoveSection,
+  onOpenAddBookmark,
+  onOpenEditBookmark,
+  onDropBookmark,
 }) => {
+  const [editingTitle, setEditingTitle] = useState(false);
+  const [titleDraft, setTitleDraft] = useState(section.title);
   const [menuPos, setMenuPos] = useState<DOMRect | null>(null);
-  const [bmPos, setBmPos] = useState<DOMRect | null>(null);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [isBookmarkDropActive, setBookmarkDropActive] = useState(false);
+
+  const filteredBookmarks = useMemo(() => {
+    const q = searchTerm.trim().toLowerCase();
+    if (!q) return section.bookmarks;
+    return section.bookmarks.filter((bookmark) => {
+      const base = `${bookmark.label} ${bookmark.url}`.toLowerCase();
+      return base.includes(q);
+    });
+  }, [searchTerm, section.bookmarks]);
 
   const renderPortal = (content: React.ReactNode, pos: DOMRect | null) => {
     if (typeof document === "undefined" || !pos) return null;
@@ -61,121 +64,228 @@ const SectionCard: React.FC<Props> = ({
     );
   };
 
+  const submitTitle = () => {
+    onRenameSection(section.id, titleDraft);
+    setEditingTitle(false);
+  };
+
+  const onSectionDrop: React.DragEventHandler<HTMLDivElement> = (event) => {
+    event.preventDefault();
+    const payload = event.dataTransfer.getData("application/bookmark-section");
+    if (!payload) return;
+    const fromIndex = Number(payload);
+    if (Number.isNaN(fromIndex)) return;
+    onMoveSection(fromIndex, sectionIndex);
+  };
+
+  const onBookmarkDrop: React.DragEventHandler<HTMLUListElement> = (event) => {
+    event.preventDefault();
+    setBookmarkDropActive(false);
+    const payload = event.dataTransfer.getData("application/bookmark-id");
+    const sourceSection = event.dataTransfer.getData("application/bookmark-section-id");
+    if (!payload || !sourceSection) return;
+    onDropBookmark(section.id, payload, sourceSection);
+  };
+
+  const compactClass = compactMode ? "space-y-1" : "space-y-2";
+  const cardTone = section.kind === "repos" ? "section-card section-card-repos" : "section-card";
+
   return (
-    <Card key={`${section.title}-${idx}`}>
-      <div className="mb-3 flex items-center justify-between">
-        <h3 className="text-base font-semibold text-text-primary">{section.title}</h3>
-
-        <div className="relative">
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-              const willOpen = !(menuIdx === idx);
-              setMenuPos(willOpen ? rect : null);
-              setMenuIdx((m) => (m === idx ? null : idx));
-            }}
-            className="rounded-md p-1.5 text-text-muted hover:bg-card-hover"
-            aria-haspopup="menu"
-            aria-expanded={menuIdx === idx}
-          >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <circle cx="12" cy="12" r="1" />
-              <circle cx="19" cy="12" r="1" />
-              <circle cx="5" cy="12" r="1" />
-            </svg>
-          </button>
-
-          {menuIdx === idx && renderPortal(
-            <div role="menu" className="w-44 overflow-hidden rounded-xl border border-card bg-card p-1 text-sm shadow-lg backdrop-blur">
-              <button className="block w-full rounded-lg px-3 py-2 text-left hover:bg-neutral-100" onClick={() => toggleEdit(idx)}>
-                {editingIdx === idx ? "Stop editing" : "Edit section"}
-              </button>
-              <button className="block w-full rounded-lg px-3 py-2 text-left hover:bg-neutral-100" onClick={() => addBookmark(idx)}>
-                Add bookmark
-              </button>
-              <button className="block w-full rounded-lg px-3 py-2 text-left hover:bg-neutral-100" onClick={() => move(idx, -1)}>
-                Move left
-              </button>
-              <button className="block w-full rounded-lg px-3 py-2 text-left hover:bg-neutral-100" onClick={() => move(idx, +1)}>
-                Move right
-              </button>
-              <button className="block w-full rounded-lg px-3 py-2 text-left text-red-600 hover:bg-red-50" onClick={() => remove(idx)}>
-                Remove section
-              </button>
-            </div>
-          , menuPos)}
-        </div>
-      </div>
-
-      {section.items && (
-        <ul className="space-y-2">
-          {editingIdx === idx && (
-            <li className="flex items-center justify-between rounded-lg border border-dashed border-card bg-card px-3 py-2 text-sm text-text-muted">
-              <span className="flex items-center gap-3">
-                <span className="h-4 w-4 rounded-sm bg-card-hover" />
-                New bookmark…
-              </span>
-              <button onClick={() => addBookmark(idx)} className="rounded-md border border-card bg-card-elevated px-2 py-1 text-xs hover:shadow">Add</button>
-            </li>
-          )}
-
-          {section.items.map((item: LinkItem, i: number) => (
-            <li key={`${item.label}-${i}`} className="flex items-center gap-3 text-sm text-text-secondary">
-              <Favicon url={item.url} color={getColor(i)} />
-              <div className="flex items-center gap-3 w-full">
-                {editingBookmark && editingBookmark.sectionIdx === idx && editingBookmark.itemIdx === i ? (
-                  <div className="flex w-full items-center gap-2">
-                    <input value={editingBookmark.label} onChange={(e) => setEditingBookmark((s: any) => (s ? { ...s, label: e.target.value } : s))} className="flex-1 rounded-md px-2 py-1" />
-                    <input value={editingBookmark.url ?? ''} onChange={(e) => setEditingBookmark((s: any) => (s ? { ...s, url: e.target.value } : s))} className="flex-1 rounded-md px-2 py-1" />
-                    <button onClick={saveEditBookmark} className="ml-2 text-sm">Save</button>
-                    <button onClick={() => setEditingBookmark(null)} className="ml-2 text-sm">Cancel</button>
-                  </div>
-                ) : (
-                  <>
-                    <a href={item.url} target="_blank" rel="noreferrer" className="hover:underline flex-1">{item.label}</a>
-                    <div className="relative">
-                      <button onClick={(e) => { e.stopPropagation(); const rect = (e.currentTarget as HTMLElement).getBoundingClientRect(); const willOpen = !(bookmarkMenu && bookmarkMenu.s === idx && bookmarkMenu.i === i); setBmPos(willOpen ? rect : null); setBookmarkMenu((m: any) => (m && m.s === idx && m.i === i ? null : { s: idx, i })); }} className="text-text-muted hover:bg-card-hover" aria-haspopup="menu" aria-expanded={bookmarkMenu?.s === idx && bookmarkMenu?.i === i}>
-                        <svg width="13" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                          <circle cx="5" cy="12" r="1" />
-                          <circle cx="12" cy="12" r="1" />
-                          <circle cx="19" cy="12" r="1" />
-                        </svg>
-                      </button>
-
-                      {bookmarkMenu?.s === idx && bookmarkMenu?.i === i && renderPortal(
-                        <div role="menu" className="w-30 overflow-visible rounded-s border border-card bg-card p-1 text-sm shadow-lg">
-                          <button className="block w-full rounded-lg px-3 py-2 text-left hover:bg-neutral-100" onClick={() => { startEditBookmark(idx, i); setBookmarkMenu(null); setBmPos(null); }}>
-                            Edit
-                          </button>
-                          <button className="block w-full rounded-lg px-3 py-2 text-left hover:bg-neutral-100" onClick={() => { moveBookmark(idx, i, -1); setBookmarkMenu(null); setBmPos(null); }}>
-                            Move up
-                          </button>
-                          <button className="block w-full rounded-lg px-3 py-2 text-left hover:bg-neutral-100" onClick={() => { moveBookmark(idx, i, +1); setBookmarkMenu(null); setBmPos(null); }}>
-                            Move down
-                          </button>
-                        </div>
-                      , bmPos)}
-                    </div>
-                  </>
-                )}
+    <Card className={`${cardTone} ${isBookmarkDropActive ? "ring-2 ring-[color:var(--accent)]/70" : ""}`}>
+      <div onDragOver={(event) => event.preventDefault()} onDrop={onSectionDrop}>
+        <div className="mb-3 flex items-center justify-between">
+          <div className="flex min-w-0 items-center gap-2">
+            <span
+              className="section-drag-handle"
+              aria-hidden
+              draggable
+              onDragStart={(event) => {
+                event.dataTransfer.setData("application/bookmark-section", String(sectionIndex));
+                event.dataTransfer.effectAllowed = "move";
+              }}
+            >
+              ⋮⋮
+            </span>
+            {editingTitle ? (
+              <div className="flex flex-1 items-center gap-2">
+                <input
+                  value={titleDraft}
+                  onChange={(event) => setTitleDraft(event.target.value)}
+                  className="w-full rounded-md border border-white/10 bg-[color:var(--surface-strong)] px-2 py-1 text-sm"
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") submitTitle();
+                  }}
+                  autoFocus
+                />
+                <button className="text-xs text-text-secondary" onClick={submitTitle}>
+                  Save
+                </button>
               </div>
-            </li>
-          ))}
-        </ul>
-      )}
+            ) : (
+              <>
+                <h3 className="section-title truncate text-text-primary">
+                  {section.title}
+                </h3>
+                <span className={`section-badge ${section.kind === "repos" ? "section-badge-repos" : "section-badge-links"}`}>
+                  {section.kind}
+                </span>
+              </>
+            )}
+          </div>
 
-      {section.icons && (
-        <div className="grid grid-cols-4 gap-4 pt-3">
-          {section.icons.map((app: LinkItem) => (
-            <a key={app.label} href={app.url} target="_blank" rel="noreferrer" className="group flex flex-col items-center gap-2 rounded-xl border border-transparent bg-card p-3 text-center text-xs text-text-secondary shadow-sm backdrop-blur transition hover:-translate-y-1 hover:shadow-md">
-              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-neutral-100 to-neutral-50 text-2xl shadow-inner">{app.icon || "🔗"}</div>
-              <span className="line-clamp-1">{app.label}</span>
-            </a>
-          ))}
+          <div className="section-actions relative flex items-center gap-1 text-[color:var(--text-soft)]">
+            <button className="action-icon" onClick={() => setEditingTitle(true)} aria-label="Edit section title">
+              ✎
+            </button>
+            <button className="action-icon" onClick={() => onMoveSection(sectionIndex, sectionIndex - 1)} aria-label="Move section left">
+              ‹
+            </button>
+            <button className="action-icon" onClick={() => onMoveSection(sectionIndex, sectionIndex + 1)} aria-label="Move section right">
+              ›
+            </button>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                const willOpen = !menuOpen;
+                setMenuPos(willOpen ? rect : null);
+                setMenuOpen(willOpen);
+              }}
+              className="action-icon"
+              aria-haspopup="menu"
+              aria-expanded={menuOpen}
+            >
+              ⋯
+            </button>
+
+            {menuOpen &&
+              renderPortal(
+                <div role="menu" className="w-44 overflow-hidden rounded-xl border border-white/10 bg-[color:var(--surface)] p-1 text-sm shadow-lg backdrop-blur">
+                  <button
+                    className="menu-item"
+                    onClick={() => {
+                      setEditingTitle(true);
+                      setMenuOpen(false);
+                    }}
+                  >
+                    Rename section
+                  </button>
+                  <button
+                    className="menu-item"
+                    onClick={() => {
+                      onOpenAddBookmark(section.id);
+                      setMenuOpen(false);
+                    }}
+                  >
+                    Add bookmark
+                  </button>
+                  <button className="menu-item text-red-400 hover:bg-red-500/15" onClick={() => onRemoveSection(section.id)}>
+                    Remove section
+                  </button>
+                </div>,
+                menuPos
+              )}
+          </div>
         </div>
-      )}
+
+        <ul
+          className={compactClass}
+          onDragOver={(event) => {
+            event.preventDefault();
+            setBookmarkDropActive(true);
+          }}
+          onDragLeave={() => setBookmarkDropActive(false)}
+          onDrop={onBookmarkDrop}
+        >
+          {filteredBookmarks.length === 0 ? (
+            <li className="rounded-xl border border-dashed border-white/20 bg-white/[0.02] px-4 py-5 text-center text-sm text-text-muted">
+              {searchTerm ? "No bookmarks found. Try another search." : "No bookmarks yet. Drop a link here or add your first bookmark."}
+            </li>
+          ) : (
+            filteredBookmarks.map((bookmark, index) => {
+              return (
+                <li
+                  key={bookmark.id}
+                  className={`bookmark-row ${compactMode ? "bookmark-row-compact" : ""}`}
+                  draggable
+                  onDragStart={(event) => {
+                    event.stopPropagation();
+                    event.dataTransfer.setData("application/bookmark-id", bookmark.id);
+                    event.dataTransfer.setData("application/bookmark-section-id", section.id);
+                    event.dataTransfer.effectAllowed = "move";
+                  }}
+                >
+                  {showFavicons ? (
+                    <Favicon url={bookmark.url} color={getColor(index)} className="h-8 w-8 rounded-lg" />
+                  ) : null}
+                  <a href={bookmark.url} target="_blank" rel="noreferrer" className="bookmark-content">
+                    {section.kind === "repos" ? (
+                      <div className="min-w-0">
+                        <div className="flex min-w-0 items-center gap-2">
+                          <RepoBadge url={bookmark.url} />
+                          <p className="bookmark-title min-w-0 [word-break:break-word]">
+                            {bookmark.label}
+                          </p>
+                        </div>
+                        <p className="bookmark-url mt-0.5">{bookmark.url}</p>
+                      </div>
+                    ) : (
+                      <>
+                        <p className="bookmark-title [word-break:break-word]">
+                          {bookmark.icon ? `${bookmark.icon} ` : ""}
+                          {bookmark.label}
+                        </p>
+                        <p className="bookmark-url mt-0.5">{bookmark.url}</p>
+                      </>
+                    )}
+                  </a>
+                  <button
+                    className="bookmark-edit-btn"
+                    onClick={() => onOpenEditBookmark(section.id, bookmark)}
+                    aria-label={`Edit ${bookmark.label}`}
+                  >
+                    ✎
+                  </button>
+                  <a
+                    href={bookmark.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="bookmark-open-btn"
+                    aria-label={`Open ${bookmark.label}`}
+                  >
+                    ↗
+                  </a>
+              </li>
+            );
+          })
+        )}
+
+        {isBookmarkDropActive ? (
+          <li className="dropzone active">Drop here to add to this section</li>
+        ) : null}
+      </ul>
+
+      {!searchTerm && filteredBookmarks.length > 0 ? (
+        <button className="add-bookmark-row mt-3 w-full" onClick={() => onOpenAddBookmark(section.id)}>
+          + Add Bookmark
+        </button>
+      ) : null}
+      </div>
     </Card>
+  );
+};
+
+const RepoBadge: React.FC<{ url: string }> = ({ url }) => {
+  const { provider } = getRepoMeta(url);
+  const mapping: Record<string, { label: string; className: string }> = {
+    github: { label: "GitHub", className: "provider-badge provider-github" },
+    gitlab: { label: "GitLab", className: "provider-badge provider-gitlab" },
+    bitbucket: { label: "Bitbucket", className: "provider-badge provider-bitbucket" },
+    other: { label: "Other", className: "provider-badge provider-other" },
+  };
+  const item = mapping[provider] ?? mapping.other;
+  return (
+    <span className={item.className}>{item.label}</span>
   );
 };
 

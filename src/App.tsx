@@ -1,4 +1,3 @@
-import React from 'react';
 import BookmarkWall from './components/BookmarkWall';
 
 

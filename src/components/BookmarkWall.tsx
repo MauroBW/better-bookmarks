@@ -1,208 +1,188 @@
 import React, { useEffect, useRef, useState } from "react";
-import { SECTIONS as INITIAL } from "../data/sections";
-import { loadWallpaper, saveWallpaper, loadSections, saveSections, loadTheme, saveTheme } from "../lib/storage";
 import Header from "./Header";
 import SectionCard from "./SectionCard";
-import type { Section } from "../lib/types";
+import HackerClock from "./HackerClock";
+import { useTheme } from "../hooks/useTheme";
+import { useWallpaper } from "../hooks/useWallpaper";
+import { useWorkspace } from "../hooks/useWorkspace";
+import BookmarkEditorModal from "./BookmarkEditorModal";
+import type { Bookmark } from "../lib/types";
+import defaultBackground from "../../background/background_1.jpg";
 
 /* ---------- Main ---------- */
 export default function BookmarkWall() {
-  /* datos + orden de secciones */
-  const [sections, setSections] = useState<Section[]>(INITIAL);
-  /* edición y menú */
-  const [editingIdx, setEditingIdx] = useState<number | null>(null);
-  const [menuIdx, setMenuIdx] = useState<number | null>(null);
-  const [editingBookmark, setEditingBookmark] = useState<{
-    sectionIdx: number;
-    itemIdx: number;
-    label: string;
-    url?: string;
-  } | null>(null);
-  const [bookmarkMenu, setBookmarkMenu] = useState<{ s: number; i: number } | null>(null);
-  /* wallpaper */
-  const [wallpaper, setWallpaper] = useState<string | null>(null);
-  const [theme, setTheme] = useState<'light' | 'dark'>(() => loadTheme() ?? 'light');
+  const { workspace, actions } = useWorkspace();
+  const { theme, toggleTheme } = useTheme();
+  const { wallpaper, updateWallpaper } = useWallpaper();
+
+  const [searchTerm, setSearchTerm] = useState("");
+  const [wallpaperFailed, setWallpaperFailed] = useState(false);
+  const [editorState, setEditorState] = useState<
+    | {
+        mode: "create" | "edit";
+        sectionId: string;
+        bookmark?: Bookmark;
+      }
+    | null
+  >(null);
+
   const fileRef = useRef<HTMLInputElement>(null);
-  const rootRef = useRef<HTMLDivElement | null>(null);
-
-  useEffect(() => {
-    const saved = loadWallpaper();
-    if (saved) setWallpaper(saved);
-
-    const savedSections = loadSections();
-    if (savedSections) setSections(savedSections);
-    // apply theme
-    const savedTheme = loadTheme();
-    const t = savedTheme ?? theme;
-    setTheme(t);
-    if (t === 'dark') document.documentElement.classList.add('dark-theme');
-    else document.documentElement.classList.remove('dark-theme');
-  }, []);
-
-  // Close menus when clicking outside or pressing Escape
-  useEffect(() => {
-    const onDocClick = (e: MouseEvent) => {
-      // if click is inside the root container, but not inside an open menu, close menus
-      const el = e.target as Node | null;
-      if (!rootRef.current) return;
-      if (!el) return;
-      // if click is inside root but not within any [role="menu"] element, close menus
-      const menu = rootRef.current.querySelector('[role="menu"]');
-      if (!menu) return setMenuIdx(null), setBookmarkMenu(null);
-      if (!menu.contains(el)) {
-        setMenuIdx(null);
-        setBookmarkMenu(null);
-      }
-    };
-
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        setMenuIdx(null);
-        setBookmarkMenu(null);
-      }
-    };
-
-    document.addEventListener('click', onDocClick);
-    document.addEventListener('keydown', onKey);
-    return () => {
-      document.removeEventListener('click', onDocClick);
-      document.removeEventListener('keydown', onKey);
-    };
-  }, [setMenuIdx, setBookmarkMenu]);
 
   const setWall = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
     if (!f) return;
+    const input = e.currentTarget;
+    setWallpaperFailed(false);
+
     const r = new FileReader();
     r.onload = () => {
-      const url = String(r.result);
-      setWallpaper(url);
-      saveWallpaper(url);
+      if (typeof r.result === "string") {
+        setWallpaperFailed(false);
+        updateWallpaper(r.result);
+      }
+    };
+    r.onerror = () => {
+      setWallpaperFailed(true);
     };
     r.readAsDataURL(f);
+    // Allow selecting the same file again.
+    input.value = "";
   };
   const clearWall = () => {
-    saveWallpaper(null);
-    setWallpaper(null);
+    setWallpaperFailed(false);
+    updateWallpaper(null);
   };
 
-  const toggleTheme = () => {
-    const next = theme === 'light' ? 'dark' : 'light';
-    setTheme(next);
-    saveTheme(next);
-    if (next === 'dark') document.documentElement.classList.add('dark-theme');
-    else document.documentElement.classList.remove('dark-theme');
-  };
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setEditorState(null);
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        const input = document.getElementById("bookmark-search-input") as HTMLInputElement | null;
+        input?.focus();
+      }
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, []);
 
-  /* acciones menú */
-  const move = (idx: number, dir: -1 | 1) => {
-    const to = idx + dir;
-    if (to < 0 || to >= sections.length) return;
-    const next = sections.slice();
-    [next[idx], next[to]] = [next[to], next[idx]];
-    setSections(next);
-    setMenuIdx(null);
-    saveSections(next);
-  };
-  const remove = (idx: number) => {
-    setSections((s) => s.filter((_, i) => i !== idx));
-    setMenuIdx(null);
-    // persist
-    saveSections(sections.filter((_, i) => i !== idx));
-  };
-  const toggleEdit = (idx: number) => {
-    setEditingIdx((e) => (e === idx ? null : idx));
-    setMenuIdx(null);
-  };
+  useEffect(() => {
+    setWallpaperFailed(false);
+  }, [wallpaper]);
 
-  const startEditBookmark = (sectionIdx: number, itemIdx: number) => {
-    const item = sections[sectionIdx].items?.[itemIdx];
-    if (!item) return;
-    setEditingBookmark({ sectionIdx, itemIdx, label: item.label, url: item.url });
-  };
+  const visualStyle = {
+    "--card-radius": `${workspace.preferences.cardRadius}px`,
+    "--accent-glow-alpha": `${workspace.preferences.accentGlow / 100}`,
+    "--ui-text-scale": `${workspace.preferences.textScale / 100}`,
+    "--section-scale": `${workspace.preferences.sectionScale / 100}`,
+  } as React.CSSProperties;
+  const backgroundDimOpacity = workspace.preferences.backgroundDim / 100;
+  const wallpaperBrightness = 1 - workspace.preferences.backgroundDim / 250;
 
-  const saveEditBookmark = () => {
-    if (!editingBookmark) return;
-    const { sectionIdx, itemIdx, label, url } = editingBookmark;
-    const next = sections.map((s, si) =>
-      si === sectionIdx
-        ? {
-            ...s,
-            items: s.items?.map((it, ii) => (ii === itemIdx ? { ...it, label, url } : it)),
-          }
-        : s
-    );
-    setSections(next);
-    saveSections(next);
-    setEditingBookmark(null);
-  };
-
-  const moveBookmark = (sectionIdx: number, itemIdx: number, dir: -1 | 1) => {
-    const items = sections[sectionIdx].items ?? [];
-    const to = itemIdx + dir;
-    if (to < 0 || to >= items.length) return;
-    const nextItems = items.slice();
-    [nextItems[itemIdx], nextItems[to]] = [nextItems[to], nextItems[itemIdx]];
-    const next = sections.map((s, si) => (si === sectionIdx ? { ...s, items: nextItems } : s));
-    setSections(next);
-    saveSections(next);
-  };
-
-  /* añadir bookmark (simple con prompt para prototipo) */
-  const addBookmark = (idx: number) => {
-    const label = window.prompt("Bookmark title:");
-    if (!label) return;
-    const url = 'https://' + window.prompt("URL (https://…):") || undefined;
-    const next = sections.map((s, i) =>
-      i === idx
-        ? {
-            ...s,
-            items: [{ label, url }, ...(s.items || [])],
-          }
-        : s
-    );
-    setSections(next);
-    saveSections(next);
+  const wallpaperStyle: React.CSSProperties = {
+    filter: `brightness(${wallpaperBrightness}) blur(${workspace.preferences.wallpaperBlur}px)`,
+    transform: workspace.preferences.wallpaperBlur > 0 ? "scale(1.04)" : undefined,
   };
 
   return (
-    <div className="relative min-h-dvh text-text-primary bg-[color:var(--bg)]">
-      {/* Fondo */}
-      {wallpaper && (
-        <div
-          className="fixed inset-0 -z-20 bg-cover bg-center"
-          style={{ backgroundImage: `url(${wallpaper})` }}
+    <div className="relative min-h-dvh text-text-primary" style={visualStyle}>
+      <img
+        src={wallpaper && !wallpaperFailed ? wallpaper : defaultBackground}
+        alt=""
+        className="fixed inset-0 z-0 h-full w-full object-cover transition-[filter] duration-200"
+        style={wallpaperStyle}
+        onError={() => setWallpaperFailed(true)}
+      />
+      <div
+        className="fixed inset-0 z-10 transition-opacity duration-200"
+        style={{
+          background: "var(--canvas-overlay)",
+          opacity: backgroundDimOpacity,
+        }}
+      />
+
+      <div className="relative z-20 px-6 py-8">
+        <Header
+          fileRef={fileRef}
+          onSetWall={setWall}
+          onClearWall={clearWall}
+          wallpaper={wallpaper}
+          theme={theme}
+          toggleTheme={toggleTheme}
+          onAddSection={() => actions.addSection("links")}
+          onOpenBookmarkModal={() => {
+            const firstSection = workspace.sections[0];
+            if (!firstSection) return;
+            setEditorState({ mode: "create", sectionId: firstSection.id });
+          }}
+          preferences={workspace.preferences}
+          onToggleCompactMode={() => actions.setCompactMode(!workspace.preferences.compactMode)}
+          onToggleFavicons={() => actions.setShowFavicons(!workspace.preferences.showFavicons)}
+          onCardRadiusChange={actions.setCardRadius}
+          onAccentGlowChange={actions.setAccentGlow}
+          onTextScaleChange={actions.setTextScale}
+          onSectionScaleChange={actions.setSectionScale}
+          onBackgroundDimChange={actions.setBackgroundDim}
+          onWallpaperBlurChange={actions.setWallpaperBlur}
+          searchValue={searchTerm}
+          onSearchChange={setSearchTerm}
         />
-      )}
-      <div className="fixed inset-0 -z-10 bg-[radial-gradient(900px_500px_at_0%_0%,rgba(120,120,120,0.18),transparent),radial-gradient(900px_500px_at_100%_20%,rgba(100,110,130,0.22),transparent),linear-gradient(180deg,rgba(245,246,248,0.88),rgba(245,246,248,0.88))]" />
 
-    <div ref={rootRef} className="relative px-8 py-10">
-        <Header fileRef={fileRef} onSetWall={setWall} onClearWall={clearWall} wallpaper={wallpaper} theme={theme} toggleTheme={toggleTheme} />
-
-        <div className="mx-auto grid max-w-6xl grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
-          {sections.map((section, idx) => (
+        <div className="section-grid mx-auto grid max-w-[1700px] grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+          {workspace.sections.map((section, index) => (
             <SectionCard
-              key={`${section.title}-${idx}`}
+              key={section.id}
               section={section}
-              idx={idx}
-              menuIdx={menuIdx}
-              editingIdx={editingIdx}
-              bookmarkMenu={bookmarkMenu}
-              editingBookmark={editingBookmark}
-              setMenuIdx={setMenuIdx}
-              toggleEdit={toggleEdit}
-              addBookmark={addBookmark}
-              startEditBookmark={startEditBookmark}
-              setBookmarkMenu={setBookmarkMenu}
-              moveBookmark={moveBookmark}
-              move={move}
-              remove={remove}
-              setEditingBookmark={setEditingBookmark}
-              saveEditBookmark={saveEditBookmark}
+              sectionIndex={index}
+              compactMode={workspace.preferences.compactMode}
+              showFavicons={workspace.preferences.showFavicons}
+              searchTerm={searchTerm}
+              onRenameSection={actions.renameSection}
+              onRemoveSection={actions.removeSection}
+              onMoveSection={actions.moveSection}
+              onOpenAddBookmark={(sectionId) => setEditorState({ mode: "create", sectionId })}
+              onOpenEditBookmark={(sectionId, bookmark) =>
+                setEditorState({ mode: "edit", sectionId, bookmark })
+              }
+              onDropBookmark={(targetSectionId, bookmarkId, sourceSectionId) =>
+                actions.moveBookmarkAcrossSections(sourceSectionId, targetSectionId, bookmarkId, 0)
+              }
             />
           ))}
         </div>
       </div>
+
+      <HackerClock />
+
+      <BookmarkEditorModal
+        open={Boolean(editorState)}
+        title={editorState?.mode === "edit" ? "Edit bookmark" : "Add bookmark"}
+        sectionId={editorState?.sectionId ?? workspace.sections[0]?.id ?? ""}
+        sections={workspace.sections}
+        initialValue={
+          editorState?.bookmark
+            ? {
+                label: editorState.bookmark.label,
+                url: editorState.bookmark.url,
+                icon: editorState.bookmark.icon,
+              }
+            : undefined
+        }
+        onClose={() => setEditorState(null)}
+        onSave={(value, selectedSectionId) => {
+          if (!editorState) return false;
+          if (editorState.mode === "edit" && editorState.bookmark) {
+            if (selectedSectionId !== editorState.sectionId) {
+              const created = actions.addBookmark(selectedSectionId, value);
+              if (!created) return false;
+              actions.removeBookmark(editorState.sectionId, editorState.bookmark.id);
+              return true;
+            }
+            return actions.updateBookmark(editorState.sectionId, editorState.bookmark.id, value);
+          }
+          return actions.addBookmark(selectedSectionId, value);
+        }}
+      />
     </div>
   );
 }
